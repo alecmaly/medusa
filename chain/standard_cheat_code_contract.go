@@ -20,6 +20,9 @@ var StandardCheatcodeContractAddress = common.HexToAddress("0x7109709ECfa91a8062
 // MaxUint64 holds the max value an uint64 can take
 var _, MaxUint64 = utils.GetIntegerConstraints(false, 64)
 
+// originalSender holds the original sender address when using startPrank cheatcode
+var originalSender = common.Address{}
+
 // getStandardCheatCodeContract obtains a CheatCodeContract which implements common cheat codes.
 // Returns the precompiled contract, or an error if one occurs.
 func getStandardCheatCodeContract(tracer *cheatCodeTracer) (*CheatCodeContract, error) {
@@ -261,6 +264,38 @@ func getStandardCheatCodeContract(tracer *cheatCodeTracer) (*CheatCodeContract, 
 					prankCallFrame.vmScope.Contract.CallerAddress = original
 				})
 			})
+			return nil, nil
+		},
+	)
+
+	contract.addMethod(
+		"startPrank", abi.Arguments{{Type: typeAddress}}, abi.Arguments{},
+		func(tracer *cheatCodeTracer, inputs []any) ([]any, *cheatCodeRawReturnData) {
+			// Obtain the caller frame. This is a pre-compile, so we want to add an event to the frame which called us,
+			// trigger the prank.
+			cheatCodeCallerFrame := tracer.PreviousCallFrame()
+
+			cheatCodeCallerFrame.prankHook.Push(func() {
+				// We entered the scope we want to prank, store the original value, patch, and add a hook to restore it
+				// when this frame is exited.
+				prankCallFrame := tracer.CurrentCallFrame()
+				originalSender = cheatCodeCallerFrame.vmScope.Contract.CallerAddress
+				prankCallFrame.vmScope.Contract.CallerAddress = inputs[0].(common.Address)
+			})
+
+			return nil, nil
+		},
+	)
+
+	contract.addMethod(
+		"stopPrank", abi.Arguments{}, abi.Arguments{},
+		func(tracer *cheatCodeTracer, inputs []any) ([]any, *cheatCodeRawReturnData) {
+			// Obtain the caller frame. This is a pre-compile, so we want to add an event to the frame which called us,
+			// remove the prank.
+			cheatCodeCallerFrame := tracer.PreviousCallFrame()
+			cheatCodeCallerFrame.prankHook = nil
+			originalSender = common.Address{}
+
 			return nil, nil
 		},
 	)

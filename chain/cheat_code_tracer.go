@@ -33,6 +33,10 @@ type cheatCodeTracerCallFrame struct {
 	// creating "the next call frame".
 	// The hooks are executed as a queue on entry.
 	onNextFrameEnterHooks types.GenericHookFuncs
+
+	// custom hook for startPrank, cleared when calling stopPrank cheatcode
+	prankHook types.GenericHookFuncs
+
 	// onNextFrameExitRestoreHooks describes hooks which will be executed the next time this call frame executes a call,
 	// and exits it, "exiting the next call frame".
 	// The hooks are executed as a stack on exit (to support revert operations).
@@ -199,6 +203,7 @@ func (t *cheatCodeTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64
 	// We execute our entered next frame hooks here (from our previous call frame), as we now have scope information.
 	if t.callDepth > 0 {
 		t.callFrames[t.callDepth-1].onNextFrameEnterHooks.Execute(true, true)
+		t.callFrames[t.callDepth-1].prankHook.Execute(true, false)
 	}
 }
 

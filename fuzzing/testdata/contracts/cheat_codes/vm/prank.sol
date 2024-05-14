@@ -2,7 +2,15 @@
 // It tests prank (spoof msg.sender on next call in the same scope), and prankHere (spoof msg.sender in this scope)
 interface CheatCodes {
     function prank(address) external;
+    function startPrank(address) external;
+    function stopPrank() external;
     function prankHere(address) external;
+}
+
+contract Prankster {
+    function prankme() public returns (address) {
+        return msg.sender;
+    }
 }
 
 contract TestContract {
@@ -80,4 +88,26 @@ contract TestContract {
 
         calledThroughTestFunction = false;
     }
+
+    function test_startPrank() public {
+        CheatCodes cheats = CheatCodes(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
+        Prankster prankster = new Prankster();
+        address userA = address(1);
+        address userB = address(2);
+        
+        assert(prankster.prankme() == address(this));
+        cheats.prank(userA);
+        assert(prankster.prankme() == userA);
+        assert(prankster.prankme() == address(this));
+
+        cheats.startPrank(userB);
+        assert(prankster.prankme() == userB);
+        assert(prankster.prankme() == userB);
+        assert(prankster.prankme() == userB);
+        cheats.stopPrank();
+
+        assert(prankster.prankme() == address(this));
+    }
+
+
 }
